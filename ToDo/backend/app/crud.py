@@ -1,0 +1,43 @@
+from sqlalchemy import delete as sqlalchemy_delete
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models import Todo
+from app.schemas import TodoCreate, TodoUpdate
+
+
+async def get_all(db: AsyncSession) -> list[Todo]:
+    result = await db.execute(select(Todo).order_by(Todo.id.asc()))
+    return list(result.scalars().all())
+
+
+async def get_by_id(db: AsyncSession, todo_id: int) -> Todo | None:
+    return await db.get(Todo, todo_id)
+
+
+async def create(db: AsyncSession, payload: TodoCreate) -> Todo:
+    todo = Todo(title=payload.title)
+    db.add(todo)
+    await db.commit()
+    await db.refresh(todo)
+    return todo
+
+
+async def update(db: AsyncSession, todo: Todo, payload: TodoUpdate) -> Todo:
+    if payload.title is not None:
+        todo.title = payload.title
+    if payload.completed is not None:
+        todo.completed = payload.completed
+    await db.commit()
+    await db.refresh(todo)
+    return todo
+
+
+async def delete(db: AsyncSession, todo: Todo) -> None:
+    await db.delete(todo)
+    await db.commit()
+
+
+async def delete_completed(db: AsyncSession) -> None:
+    await db.execute(sqlalchemy_delete(Todo).where(Todo.completed.is_(True)))
+    await db.commit()
