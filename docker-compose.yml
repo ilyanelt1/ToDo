@@ -58,8 +58,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        VITE_API_URL: /api
     restart: unless-stopped
     ports:
       - "${FRONTEND_PORT:-8080}:80"
