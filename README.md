@@ -1,131 +1,103 @@
 # To-Do List
 
-Небольшое веб-приложение для управления личными задачами. Можно добавлять задачи, отмечать их выполненными, редактировать и удалять. Список сохраняется в базе данных, поэтому задачи остаются после перезагрузки страницы.
+Веб-приложение для управления задачами. Поддерживает создание, редактирование, отметку выполнения, фильтрацию и удаление задач.
 
 ## Возможности
 
-- Добавление новых задач.
-- Отметка задач как выполненных и снятие отметки.
-- Удаление отдельных задач.
-- Редактирование названия задачи двойным щелчком по ней.
-- Фильтрация: все, активные и выполненные задачи.
-- Удаление всех выполненных задач.
-- Локальное сохранение последнего загруженного списка в браузере.
-
-> Основное постоянное хранилище — база данных backend. Локальное хранилище браузера используется как резерв для отображения списка при недоступности API. Автоматическая синхронизация офлайн-изменений с сервером пока не реализована.
+- Добавление и редактирование задач.
+- Отметка задач как выполненных.
+- Удаление отдельных задач и всех выполненных задач.
+- Фильтры: все, активные и выполненные.
+- PostgreSQL для постоянного хранения данных.
+- Docker Compose для запуска всего приложения.
+- SQL-миграции для создания таблицы задач и отката её создания.
 
 ## Технологии
 
-**Backend:** Python 3.12+, FastAPI, SQLAlchemy 2 (async), Pydantic v2, SQLite, aiosqlite, Uvicorn.
+- **Backend:** Python 3.12+, FastAPI, SQLAlchemy 2, Pydantic v2, asyncpg.
+- **Frontend:** React 18, TypeScript, Vite, Tailwind CSS, Nginx.
+- **Database:** PostgreSQL 16.
+- **Infrastructure:** Docker, Docker Compose.
+- **Tests:** pytest, pytest-asyncio, HTTPX.
 
-**Frontend:** React 18, TypeScript, Vite, Tailwind CSS.
+## Запуск через Docker Compose
 
-**Тестирование:** pytest, pytest-asyncio, HTTPX.
+Необходимы Docker Desktop (или Docker Engine) и Docker Compose v2.
 
-## Структура проекта
-
-```text
-.
-├── backend/
-│   ├── app/
-│   │   ├── routers/
-│   │   ├── config.py
-│   │   ├── crud.py
-│   │   ├── database.py
-│   │   ├── main.py
-│   │   ├── models.py
-│   │   └── schemas.py
-│   ├── tests/
-│   ├── requirements.txt
-│   └── requirements-dev.txt
-└── frontend/
-    ├── src/
-    │   ├── api/
-    │   ├── components/
-    │   ├── hooks/
-    │   └── types/
-    ├── package.json
-    └── package-lock.json
-```
-
-## Требования
-
-- Python 3.12 или новее.
-- Node.js 20 или новее.
-- npm.
-
-## Запуск локально
-
-Для запуска открой два терминала: один для backend, второй для frontend.
-
-### 1. Backend
-
-Перейди в каталог backend:
+Из корня репозитория выполни:
 
 ```bash
-cd backend
+docker compose up --build -d
 ```
 
-Создай и активируй виртуальное окружение.
+После запуска приложение будет доступно:
 
-**Windows (PowerShell):**
+- Frontend: http://localhost:8080
+- Backend API: http://localhost:8080/api/todos
+- API health check: http://localhost:8080/health
+- Swagger UI: http://localhost:8080/docs
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+Compose поднимает PostgreSQL, применяет миграцию создания таблицы, запускает backend и затем frontend. Миграция выполняется отдельным одноразовым сервисом и не запускается повторно, если уже отмечена как применённая.
 
-**Linux / macOS:**
+Посмотреть состояние сервисов и логи:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
+docker compose ps
+docker compose logs -f
+docker compose logs -f backend
+docker compose logs -f migrate
 ```
 
-Установи зависимости:
+Остановить приложение:
 
 ```bash
-python -m pip install -r requirements-dev.txt
+docker compose down
 ```
 
-Запусти API:
+Остановить приложение и удалить данные PostgreSQL:
 
 ```bash
-uvicorn app.main:app --reload
+docker compose down -v
 ```
 
-По умолчанию приложение использует SQLite и создаёт таблицы при запуске. База данных `todo.db` будет находиться в каталоге `backend`.
+> Команда с `-v` удаляет том PostgreSQL вместе со всеми сохранёнными задачами.
 
-Backend будет доступен по адресу http://localhost:8000.
+## Переменные окружения
 
-Интерактивная документация API: http://localhost:8000/docs.
+Можно создать в корне файл `.env`:
 
-### 2. Frontend
+```dotenv
+POSTGRES_DB=todo
+POSTGRES_USER=todo
+POSTGRES_PASSWORD=change_me
+FRONTEND_PORT=8080
+ALLOWED_ORIGINS=http://localhost:8080
+```
 
-В новом терминале перейди в каталог frontend из корня репозитория:
+Для реального развёртывания обязательно задай надёжный пароль PostgreSQL. Не добавляй файл `.env` в Git.
+
+## Миграции базы данных
+
+Файлы миграций находятся в `backend/migrations`:
+
+| Файл | Назначение |
+|---|---|
+| `001_create_todos.up.sql` | Создаёт таблицу `todos` |
+| `001_create_todos.down.sql` | Удаляет таблицу `todos` (откат) |
+
+Миграции запускаются из каталога `backend`:
 
 ```bash
-cd frontend
-npm ci
-npm run dev
+python migrate.py upgrade
 ```
 
-Открой адрес, который Vite выведет в терминале. По умолчанию это http://localhost:5173.
-
-По умолчанию frontend отправляет запросы к API по адресу `http://localhost:8000`. Если backend работает по другому адресу, задай переменную окружения `VITE_API_URL` перед запуском Vite.
-
-**PowerShell:**
-
-```powershell
-$env:VITE_API_URL = "http://localhost:8000"
-npm run dev
-```
-
-**Linux / macOS:**
+Для отката:
 
 ```bash
-VITE_API_URL=http://localhost:8000 npm run dev
+python migrate.py downgrade
 ```
+
+Миграции отмечаются в таблице `schema_migrations`. Откат удаляет таблицу задач и все данные в ней. Не запускай downgrade на базе с нужными данными.
 
 ## API
 
@@ -135,53 +107,104 @@ VITE_API_URL=http://localhost:8000 npm run dev
 |---|---|---|
 | GET | `/api/todos` | Получить список задач |
 | POST | `/api/todos` | Создать задачу |
-| PATCH | `/api/todos/{todo_id}` | Изменить название или статус задачи |
+| PATCH | `/api/todos/{todo_id}` | Изменить название или статус |
 | DELETE | `/api/todos/{todo_id}` | Удалить задачу |
-| DELETE | `/api/todos/completed` | Удалить все выполненные задачи |
-| GET | `/health` | Проверить доступность API |
+| DELETE | `/api/todos/completed` | Удалить выполненные задачи |
+| GET | `/health` | Проверить API и подключение к БД |
 
-Для создания задачи передаётся JSON:
+Пример тела запроса для создания задачи:
 
 ```json
 {
-  "title": "Изучить FastAPI"
+  "title": "Изучить Docker Compose"
 }
 ```
 
-## Проверка
+## Локальный запуск без Docker
 
-### Backend-тесты
-
-Из каталога `backend`, с активированным виртуальным окружением:
+### Backend
 
 ```bash
-pytest -v
+cd backend
+python -m venv .venv
 ```
+
+Windows PowerShell:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+Linux/macOS:
+
+```bash
+source .venv/bin/activate
+```
+
+Установка и запуск:
+
+```bash
+pip install -r requirements-dev.txt
+uvicorn app.main:app --reload
+```
+
+Для локального запуска можно использовать SQLite, указав:
+
+```bash
+DATABASE_URL=sqlite+aiosqlite:///./todo.db
+```
+
+Либо задать URL PostgreSQL через переменную `DATABASE_URL`. Миграции из этого проекта предназначены для PostgreSQL.
 
 ### Frontend
 
-Из каталога `frontend`:
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+При локальном запуске Vite frontend по умолчанию обращается к API по адресу `http://localhost:8000`. При необходимости задай `VITE_API_URL`.
+
+## Проверка
+
+Backend:
 
 ```bash
+cd backend
+pytest -v
+```
+
+Frontend:
+
+```bash
+cd frontend
 npm run typecheck
 npm run lint
 npm run build
 ```
 
-## Конфигурация
+## Структура проекта
 
-Backend поддерживает следующие переменные окружения:
-
-| Переменная | Значение по умолчанию | Назначение |
-|---|---|---|
-| `DATABASE_URL` | `sqlite+aiosqlite:///./todo.db` | Строка подключения к базе данных |
-| `ALLOWED_ORIGINS` | `http://localhost:5173` | Разрешённые CORS-origin через запятую |
-
-Frontend:
-
-| Переменная | Значение по умолчанию | Назначение |
-|---|---|---|
-| `VITE_API_URL` | `http://localhost:8000` | Базовый URL backend API |
+```text
+.
+├── backend/
+│   ├── app/
+│   ├── migrations/
+│   │   ├── 001_create_todos.up.sql
+│   │   └── 001_create_todos.down.sql
+│   ├── tests/
+│   ├── Dockerfile
+│   ├── migrate.py
+│   └── requirements.txt
+├── frontend/
+│   ├── src/
+│   ├── Dockerfile
+│   ├── nginx.conf
+│   └── package.json
+├── docker-compose.yml
+└── README.md
+```
 
 ## Репозиторий
 
