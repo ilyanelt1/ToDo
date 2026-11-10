@@ -41,7 +41,7 @@ jobs:
         run: pytest -q
 
   frontend:
-    name: Frontend (Node 20)
+    name: Frontend (Node 22)
     runs-on: ubuntu-latest
 
     steps:
