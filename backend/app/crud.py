@@ -19,12 +19,12 @@ async def get_by_id(db: AsyncSession, todo_id: int) -> Todo | None:
 async def create(db: AsyncSession, payload: TodoCreate) -> Todo:
     if payload.client_id is not None:
         existing = await db.scalar(
-            select(Todo).where(Todo.client_id == str(payload.client_id))
+            select(Todo).where(Todo.client_id == payload.client_id)
         )
         if existing is not None:
             return existing
 
-    todo = Todo(title=payload.title, client_id=str(payload.client_id) if payload.client_id else None)
+    todo = Todo(title=payload.title, client_id=payload.client_id)
     db.add(todo)
     try:
         await db.commit()
