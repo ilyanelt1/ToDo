@@ -1,6 +1,7 @@
+from typing import cast
+
 from sqlalchemy import delete as sqlalchemy_delete
 from sqlalchemy import select
-from typing import cast
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
