@@ -100,10 +100,7 @@ function readPendingOperations(): PendingOperation[] {
   });
 
   if (
-    stored.some(
-      (op, index) =>
-        op.kind === "create" && op.clientId !== normalized[index].clientId,
-    )
+    stored.some((op) => op.kind === "create" && op.clientId === undefined)
   ) {
     writeJson(PENDING_KEY, normalized);
   }
