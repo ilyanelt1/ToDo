@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from uuid import UUID
 
 from sqlalchemy import Boolean, DateTime, Integer, String, Uuid
 from sqlalchemy.orm import Mapped, mapped_column
@@ -21,8 +22,8 @@ class Todo(Base):
         nullable=False,
         default=_utcnow,
     )
-    client_id: Mapped[str | None] = mapped_column(
-        Uuid(as_uuid=False),
+    client_id: Mapped[UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
         nullable=True,
         unique=True,
     )
