@@ -1,10 +1,12 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class TodoCreate(BaseModel):
     title: str = Field(max_length=200)
+    client_id: UUID | None = None
 
 
 class TodoUpdate(BaseModel):
