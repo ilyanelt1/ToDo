@@ -27,11 +27,7 @@ async def upgrade() -> None:
     await _ensure_migrations_table()
     async with engine.begin() as connection:
         applied_versions = set(
-            (
-                await connection.scalars(
-                    text("SELECT version FROM schema_migrations")
-                )
-            ).all()
+            (await connection.scalars(text("SELECT version FROM schema_migrations"))).all()
         )
         for migration_path in sorted(MIGRATIONS_DIR.glob("*.up.sql")):
             version = migration_path.name.removesuffix(".up.sql")
@@ -39,9 +35,7 @@ async def upgrade() -> None:
                 print(f"Migration {version} is already applied")
                 continue
 
-            await connection.exec_driver_sql(
-                migration_path.read_text(encoding="utf-8")
-            )
+            await connection.exec_driver_sql(migration_path.read_text(encoding="utf-8"))
             await connection.execute(
                 text("INSERT INTO schema_migrations (version) VALUES (:version)"),
                 {"version": version},
@@ -55,10 +49,7 @@ async def downgrade() -> None:
         applied_versions = list(
             (
                 await connection.scalars(
-                    text(
-                        "SELECT version FROM schema_migrations "
-                        "ORDER BY version DESC"
-                    )
+                    text("SELECT version FROM schema_migrations ORDER BY version DESC")
                 )
             ).all()
         )
