@@ -99,9 +99,7 @@ function readPendingOperations(): PendingOperation[] {
     return op;
   });
 
-  if (
-    stored.some((op) => op.kind === "create" && op.clientId === undefined)
-  ) {
+  if (stored.some((op) => op.kind === "create" && op.clientId === undefined)) {
     writeJson(PENDING_KEY, normalized);
   }
 
