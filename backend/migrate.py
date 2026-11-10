@@ -58,9 +58,7 @@ async def downgrade() -> None:
             if not migration_path.is_file():
                 raise RuntimeError(f"Downgrade migration not found: {migration_path}")
 
-            await connection.exec_driver_sql(
-                migration_path.read_text(encoding="utf-8")
-            )
+            await connection.exec_driver_sql(migration_path.read_text(encoding="utf-8"))
             await connection.execute(
                 text("DELETE FROM schema_migrations WHERE version = :version"),
                 {"version": version},
