@@ -81,4 +81,3 @@ async def test_delete_completed(client: AsyncClient) -> None:
     assert isinstance(body, list)
     assert len(body) == 1
     assert body[0]["id"] == pending
-    

@@ -48,12 +48,12 @@ async def update_todo(todo_id: int, payload: TodoUpdate, db: DbDep) -> TodoRead:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Todo not found",
         )
-    
+
     normalized_title = _normalize_title(payload.title) if payload.title is not None else None
-    
+
     # Создаем новый объект вместо мутации входящего
     safe_payload = TodoUpdate(title=normalized_title, completed=payload.completed)
-    
+
     updated = await crud.update(db, todo, safe_payload)
     return TodoRead.model_validate(updated)
 
