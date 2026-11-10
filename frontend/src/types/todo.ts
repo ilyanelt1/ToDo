@@ -7,6 +7,7 @@ export interface Todo {
 
 export interface TodoCreate {
   title: string;
+  client_id?: string;
 }
 
 export interface TodoUpdate {
