@@ -1,5 +1,8 @@
+from typing import cast
+
 from sqlalchemy import delete as sqlalchemy_delete
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Todo
@@ -16,9 +19,27 @@ async def get_by_id(db: AsyncSession, todo_id: int) -> Todo | None:
 
 
 async def create(db: AsyncSession, payload: TodoCreate) -> Todo:
-    todo = Todo(title=payload.title)
+    if payload.client_id is not None:
+        existing = await db.scalar(select(Todo).where(Todo.client_id == payload.client_id))
+        if existing is not None:
+            return existing
+
+    todo = Todo(title=payload.title, client_id=payload.client_id)
     db.add(todo)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        if payload.client_id is None:
+            raise
+        existing = cast(
+            Todo | None,
+            await db.scalar(select(Todo).where(Todo.client_id == payload.client_id)),
+        )
+        if existing is None:
+            raise
+        return existing
+
     await db.refresh(todo)
     return todo
 

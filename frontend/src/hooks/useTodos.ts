@@ -8,13 +8,17 @@ const PENDING_KEY = "todo_pending";
 const RETRY_INTERVAL_MS = 5000;
 
 type PendingOperation =
-  | { kind: "create"; tempId: number; title: string }
+  | { kind: "create"; tempId: number; title: string; clientId: string }
   | {
       kind: "update";
       id: number;
       changes: { title?: string; completed?: boolean };
     }
   | { kind: "delete"; id: number };
+
+type StoredPendingOperation =
+  | { kind: "create"; tempId: number; title: string; clientId?: string }
+  | Exclude<PendingOperation, { kind: "create" }>;
 
 interface UseTodosResult {
   todos: Todo[];
@@ -43,11 +47,15 @@ function isTodo(value: unknown): value is Todo {
   );
 }
 
-function isPendingOperation(value: unknown): value is PendingOperation {
+function isPendingOperation(value: unknown): value is StoredPendingOperation {
   if (typeof value !== "object" || value === null) return false;
   const op = value as Record<string, unknown>;
   if (op.kind === "create") {
-    return typeof op.tempId === "number" && typeof op.title === "string";
+    return (
+      typeof op.tempId === "number" &&
+      typeof op.title === "string" &&
+      (op.clientId === undefined || typeof op.clientId === "string")
+    );
   }
   if (op.kind === "update") {
     return (
@@ -80,6 +88,22 @@ function writeJson(key: string, value: unknown): void {
   } catch {
     // quota exceeded or storage disabled — silently ignore
   }
+}
+
+function readPendingOperations(): PendingOperation[] {
+  const stored = readJsonArray(PENDING_KEY, isPendingOperation);
+  const normalized: PendingOperation[] = stored.map((op) => {
+    if (op.kind === "create") {
+      return { ...op, clientId: op.clientId ?? crypto.randomUUID() };
+    }
+    return op;
+  });
+
+  if (stored.some((op) => op.kind === "create" && op.clientId === undefined)) {
+    writeJson(PENDING_KEY, normalized);
+  }
+
+  return normalized;
 }
 
 let tempCounter = 0;
@@ -131,9 +155,7 @@ export function useTodos(): UseTodosResult {
   const [offline, setOffline] = useState(false);
 
   const todosRef = useRef(todosState);
-  const queueRef = useRef<PendingOperation[]>(
-    readJsonArray(PENDING_KEY, isPendingOperation),
-  );
+  const queueRef = useRef<PendingOperation[]>(readPendingOperations());
   const drainingRef = useRef(false);
   const offlineRef = useRef(offline);
   offlineRef.current = offline;
@@ -172,7 +194,10 @@ export function useTodos(): UseTodosResult {
         const op = queue[0];
         try {
           if (op.kind === "create") {
-            const created = await api.createTodo({ title: op.title });
+            const created = await api.createTodo({
+              title: op.title,
+              client_id: op.clientId,
+            });
             setTodos((current) =>
               current.map((t) => (t.id === op.tempId ? created : t)),
             );
@@ -286,7 +311,15 @@ export function useTodos(): UseTodosResult {
         created_at: new Date().toISOString(),
       };
       setTodos((prev) => [...prev, optimistic]);
-      setQueue((prev) => [...prev, { kind: "create", tempId, title: trimmed }]);
+      setQueue((prev) => [
+        ...prev,
+        {
+          kind: "create",
+          tempId,
+          title: trimmed,
+          clientId: crypto.randomUUID(),
+        },
+      ]);
       if (!offline) await drainQueue();
     },
     [drainQueue, offline, setQueue, setTodos],

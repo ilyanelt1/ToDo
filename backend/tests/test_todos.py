@@ -18,6 +18,44 @@ async def test_create_todo(client: AsyncClient) -> None:
     assert "created_at" in body
 
 
+async def test_create_todo_is_idempotent(client: AsyncClient) -> None:
+    client_id = "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+    payload = {"title": "Offline task", "client_id": client_id}
+
+    first = await client.post("/api/todos", json=payload)
+    retry = await client.post("/api/todos", json=payload)
+
+    assert first.status_code == 201
+    assert retry.status_code == 201
+    assert retry.json()["id"] == first.json()["id"]
+
+    response = await client.get("/api/todos")
+    assert len(response.json()) == 1
+
+
+async def test_create_todo_allows_same_title_with_different_client_ids(
+    client: AsyncClient,
+) -> None:
+    first = await client.post(
+        "/api/todos",
+        json={
+            "title": "Same title",
+            "client_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+        },
+    )
+    second = await client.post(
+        "/api/todos",
+        json={
+            "title": "Same title",
+            "client_id": "c56a4180-65aa-42ec-a945-5fd21dec0538",
+        },
+    )
+
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] != second.json()["id"]
+
+
 async def test_create_todo_rejects_empty_title(client: AsyncClient) -> None:
     response = await client.post("/api/todos", json={"title": "   "})
     assert response.status_code == 400

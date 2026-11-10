@@ -1,0 +1,1 @@
+ALTER TABLE todos ADD COLUMN client_id UUID UNIQUE;
