@@ -33,7 +33,7 @@ async def create(db: AsyncSession, payload: TodoCreate) -> Todo:
         if payload.client_id is None:
             raise
         existing = await db.scalar(
-            select(Todo).where(Todo.client_id == str(payload.client_id))
+            select(Todo).where(Todo.client_id == payload.client_id)
         )
         if existing is None:
             raise
