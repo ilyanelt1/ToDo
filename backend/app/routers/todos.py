@@ -52,9 +52,7 @@ async def update_todo(todo_id: int, payload: TodoUpdate, db: DbDep) -> TodoRead:
             detail="Todo not found",
         )
 
-    normalized_title = (
-        _normalize_title(payload.title) if payload.title is not None else None
-    )
+    normalized_title = _normalize_title(payload.title) if payload.title is not None else None
 
     safe_payload = TodoUpdate(title=normalized_title, completed=payload.completed)
 
