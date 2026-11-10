@@ -1,6 +1,6 @@
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py313"
 src = ["app", "tests"]
 
 [tool.ruff.lint]
@@ -14,7 +14,7 @@ known-first-party = ["app"]
 quote-style = "double"
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 plugins = ["pydantic.mypy"]

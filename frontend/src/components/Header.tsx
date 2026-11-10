@@ -3,6 +3,14 @@ interface HeaderProps {
   offline: boolean;
 }
 
+function pluralizeTasks(n: number): string {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'задача';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return 'задачи';
+  return 'задач';
+}
+
 export function Header({ remaining, offline }: HeaderProps) {
   return (
     <header className="mb-6 flex items-center justify-between gap-3">
@@ -17,7 +25,9 @@ export function Header({ remaining, offline }: HeaderProps) {
           </span>
         )}
       </div>
-      <span className="text-sm text-gray-500">осталось {remaining}</span>
+      <span className="text-sm text-gray-500">
+        осталось {remaining} {pluralizeTasks(remaining)}
+      </span>
     </header>
   );
 }

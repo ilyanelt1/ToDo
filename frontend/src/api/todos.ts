@@ -1,8 +1,7 @@
 import type { Todo, TodoCreate, TodoUpdate } from '../types/todo';
 
 const API_URL: string =
-  (import.meta.env.VITE_API_URL as string | undefined) ?? 'http://localhost:8000';
-
+  (import.meta.env.VITE_API_URL as string | undefined)?.trim() || 'http://localhost:8000'
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     ...init,

@@ -1,9 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import * as api from '../api/todos';
 import type { Filter, Todo } from '../types/todo';
 
 const STORAGE_KEY = 'todos';
+const PENDING_KEY = 'todo_pending';
+const RETRY_INTERVAL_MS = 5000;
+
+type PendingOperation =
+  | { kind: 'create'; tempId: number; title: string }
+  | { kind: 'update'; id: number; changes: { title?: string; completed?: boolean } }
+  | { kind: 'delete'; id: number };
 
 interface UseTodosResult {
   todos: Todo[];
@@ -32,40 +39,152 @@ function isTodo(value: unknown): value is Todo {
   );
 }
 
-function loadFromStorage(): Todo[] {
+function isPendingOperation(value: unknown): value is PendingOperation {
+  if (typeof value !== 'object' || value === null) return false;
+  const op = value as Record<string, unknown>;
+  if (op.kind === 'create') {
+    return typeof op.tempId === 'number' && typeof op.title === 'string';
+  }
+  if (op.kind === 'update') {
+    return typeof op.id === 'number' && typeof op.changes === 'object' && op.changes !== null;
+  }
+  if (op.kind === 'delete') {
+    return typeof op.id === 'number';
+  }
+  return false;
+}
+
+function readJsonArray<T>(key: string, guard: (v: unknown) => v is T): T[] {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isTodo);
+    return parsed.filter(guard);
   } catch {
     return [];
   }
 }
 
-function saveToStorage(todos: Todo[]): void {
+function writeJson(key: string, value: unknown): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+    localStorage.setItem(key, JSON.stringify(value));
   } catch {
-    // storage quota or disabled — silently ignore, UI keeps working
+    // quota exceeded or storage disabled — silently ignore
   }
 }
 
+let tempCounter = 0;
 function makeTempId(): number {
-  return -Date.now();
+  tempCounter += 1;
+  return -Date.now() - tempCounter;
+}
+
+function isNetworkError(err: unknown): boolean {
+  return err instanceof TypeError;
 }
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : 'Не удалось выполнить запрос';
 }
 
+function remapId(from: number, to: number) {
+  return (op: PendingOperation): PendingOperation => {
+    if (op.kind === 'update' && op.id === from) return { ...op, id: to };
+    if (op.kind === 'delete' && op.id === from) return { ...op, id: to };
+    return op;
+  };
+}
+
+function mergeRemoteWithLocal(
+  local: Todo[],
+  remote: Todo[],
+  queue: PendingOperation[],
+): Todo[] {
+  const pendingDeletes = new Set<number>();
+  for (const op of queue) {
+    if (op.kind === 'delete') pendingDeletes.add(op.id);
+  }
+  const map = new Map<number, Todo>();
+  for (const t of remote) {
+    if (!pendingDeletes.has(t.id)) map.set(t.id, t);
+  }
+  for (const t of local) {
+    map.set(t.id, t);
+  }
+  return Array.from(map.values()).sort((a, b) => a.id - b.id);
+}
+
 export function useTodos(): UseTodosResult {
-  const [todos, setTodos] = useState<Todo[]>([]);
+  const [todosState, setTodosState] = useState<Todo[]>([]);
   const [filter, setFilterState] = useState<Filter>('all');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+
+  const todosRef = useRef(todosState);
+  const queueRef = useRef<PendingOperation[]>(readJsonArray(PENDING_KEY, isPendingOperation));
+  const drainingRef = useRef(false);
+  const offlineRef = useRef(offline);
+  offlineRef.current = offline;
+
+  const setTodos = useCallback(
+    (updater: Todo[] | ((prev: Todo[]) => Todo[])) => {
+      const prev = todosRef.current;
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      todosRef.current = next;
+      setTodosState(next);
+      writeJson(STORAGE_KEY, next);
+    },
+    [],
+  );
+
+  const setQueue = useCallback(
+    (updater: PendingOperation[] | ((prev: PendingOperation[]) => PendingOperation[])) => {
+      const prev = queueRef.current;
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      queueRef.current = next;
+      writeJson(PENDING_KEY, next);
+    },
+    [],
+  );
+
+  const drainQueue = useCallback(async () => {
+    if (drainingRef.current) return;
+    drainingRef.current = true;
+    try {
+      for (;;) {
+        const queue = queueRef.current;
+        if (queue.length === 0) break;
+        const op = queue[0];
+        try {
+          if (op.kind === 'create') {
+            const created = await api.createTodo({ title: op.title });
+            setTodos((current) => current.map((t) => (t.id === op.tempId ? created : t)));
+            setQueue((current) => current.slice(1).map(remapId(op.tempId, created.id)));
+          } else if (op.kind === 'update') {
+            await api.updateTodo(op.id, op.changes);
+            setQueue((current) => current.slice(1));
+          } else if (op.kind === 'delete') {
+            await api.deleteTodo(op.id);
+            setQueue((current) => current.slice(1));
+          }
+        } catch (err) {
+          if (isNetworkError(err)) {
+            setOffline(true);
+            break;
+          }
+          setError(errorMessage(err));
+          if (op.kind === 'create') {
+            setTodos((current) => current.filter((t) => t.id !== op.tempId));
+          }
+          setQueue((current) => current.slice(1));
+        }
+      }
+    } finally {
+      drainingRef.current = false;
+    }
+  }, [setQueue, setTodos]);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,13 +192,22 @@ export function useTodos(): UseTodosResult {
       try {
         const remote = await api.getTodos();
         if (cancelled) return;
-        setTodos(remote);
-        saveToStorage(remote);
+        const queue = queueRef.current;
+        if (queue.length === 0) {
+          setTodos(remote);
+        } else {
+          const local = readJsonArray(STORAGE_KEY, isTodo);
+          setTodos(mergeRemoteWithLocal(local, remote, queue));
+        }
         setOffline(false);
-      } catch {
+        await drainQueue();
+      } catch (err) {
         if (cancelled) return;
         setOffline(true);
-        setTodos(loadFromStorage());
+        setTodos(readJsonArray(STORAGE_KEY, isTodo));
+        if (!isNetworkError(err)) {
+          setError(errorMessage(err));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -87,7 +215,42 @@ export function useTodos(): UseTodosResult {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [drainQueue, setTodos]);
+
+  useEffect(() => {
+    if (!offline) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const attempt = async () => {
+      if (cancelled) return;
+      try {
+        const remote = await api.getTodos();
+        if (cancelled) return;
+        const queue = queueRef.current;
+        if (queue.length === 0) {
+          setTodos(remote);
+        } else {
+          const local = readJsonArray(STORAGE_KEY, isTodo);
+          setTodos(mergeRemoteWithLocal(local, remote, queue));
+        }
+        setOffline(false);
+        await drainQueue();
+      } catch {
+        // still offline — retry below
+      }
+      if (cancelled) return;
+      if (offlineRef.current) {
+        timer = setTimeout(attempt, RETRY_INTERVAL_MS);
+      }
+    };
+
+    timer = setTimeout(attempt, RETRY_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [offline, drainQueue, setTodos]);
 
   const setFilter = useCallback((next: Filter) => {
     setFilterState(next);
@@ -98,137 +261,101 @@ export function useTodos(): UseTodosResult {
       const trimmed = title.trim();
       if (!trimmed) return;
       setError(null);
-      const previous = todos;
+      const tempId = makeTempId();
       const optimistic: Todo = {
-        id: makeTempId(),
+        id: tempId,
         title: trimmed,
         completed: false,
         created_at: new Date().toISOString(),
       };
-      const next = [...todos, optimistic];
-      setTodos(next);
-      saveToStorage(next);
-      if (offline) return;
-      try {
-        const created = await api.createTodo({ title: trimmed });
-        setTodos((current) => {
-          const replaced = current.map((t) => (t.id === optimistic.id ? created : t));
-          saveToStorage(replaced);
-          return replaced;
-        });
-      } catch (err) {
-        setError(errorMessage(err));
-        setTodos(previous);
-        saveToStorage(previous);
-      }
+      setTodos((prev) => [...prev, optimistic]);
+      setQueue((prev) => [...prev, { kind: 'create', tempId, title: trimmed }]);
+      if (!offline) await drainQueue();
     },
-    [todos, offline],
+    [drainQueue, offline, setQueue, setTodos],
   );
 
   const toggle = useCallback(
     async (id: number) => {
-      const target = todos.find((t) => t.id === id);
+      const target = todosRef.current.find((t) => t.id === id);
       if (!target) return;
       setError(null);
-      const previous = todos;
-      const next = todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t));
-      setTodos(next);
-      saveToStorage(next);
-      if (offline) return;
-      try {
-        const updated = await api.updateTodo(id, { completed: !target.completed });
-        setTodos((current) => {
-          const replaced = current.map((t) => (t.id === id ? updated : t));
-          saveToStorage(replaced);
-          return replaced;
-        });
-      } catch (err) {
-        setError(errorMessage(err));
-        setTodos(previous);
-        saveToStorage(previous);
-      }
+      setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+      setQueue((prev) => [
+        ...prev,
+        { kind: 'update', id, changes: { completed: !target.completed } },
+      ]);
+      if (!offline) await drainQueue();
     },
-    [todos, offline],
+    [drainQueue, offline, setQueue, setTodos],
   );
 
   const remove = useCallback(
     async (id: number) => {
       setError(null);
-      const previous = todos;
-      const next = todos.filter((t) => t.id !== id);
-      setTodos(next);
-      saveToStorage(next);
-      if (offline) return;
-      try {
-        await api.deleteTodo(id);
-      } catch (err) {
-        setError(errorMessage(err));
-        setTodos(previous);
-        saveToStorage(previous);
-      }
+      setTodos((prev) => prev.filter((t) => t.id !== id));
+      setQueue((prev) => [...prev, { kind: 'delete', id }]);
+      if (!offline) await drainQueue();
     },
-    [todos, offline],
+    [drainQueue, offline, setQueue, setTodos],
   );
 
   const rename = useCallback(
     async (id: number, title: string) => {
       const trimmed = title.trim();
       if (!trimmed) return;
-      const target = todos.find((t) => t.id === id);
+      const target = todosRef.current.find((t) => t.id === id);
       if (!target || target.title === trimmed) return;
       setError(null);
-      const previous = todos;
-      const next = todos.map((t) => (t.id === id ? { ...t, title: trimmed } : t));
-      setTodos(next);
-      saveToStorage(next);
-      if (offline) return;
-      try {
-        const updated = await api.updateTodo(id, { title: trimmed });
-        setTodos((current) => {
-          const replaced = current.map((t) => (t.id === id ? updated : t));
-          saveToStorage(replaced);
-          return replaced;
-        });
-      } catch (err) {
-        setError(errorMessage(err));
-        setTodos(previous);
-        saveToStorage(previous);
-      }
+      setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, title: trimmed } : t)));
+      setQueue((prev) => [...prev, { kind: 'update', id, changes: { title: trimmed } }]);
+      if (!offline) await drainQueue();
     },
-    [todos, offline],
+    [drainQueue, offline, setQueue, setTodos],
   );
 
   const clearCompleted = useCallback(async () => {
+    const completed = todosRef.current.filter((t) => t.completed);
+    if (completed.length === 0) return;
     setError(null);
-    const previous = todos;
-    const next = todos.filter((t) => !t.completed);
-    setTodos(next);
-    saveToStorage(next);
-    if (offline) return;
-    try {
-      await api.clearCompleted();
-    } catch (err) {
-      setError(errorMessage(err));
-      setTodos(previous);
-      saveToStorage(previous);
+    setTodos((prev) => prev.filter((t) => !t.completed));
+
+    const allSynced = completed.every((t) => t.id > 0);
+    const queueEmpty = queueRef.current.length === 0;
+
+    if (allSynced && queueEmpty && !offline) {
+      try {
+        await api.clearCompleted();
+        return;
+      } catch (err) {
+        if (!isNetworkError(err)) {
+          setError(errorMessage(err));
+          return;
+        }
+        setOffline(true);
+      }
     }
-  }, [todos, offline]);
+
+    const deleteOps: PendingOperation[] = completed.map((t) => ({ kind: 'delete', id: t.id }));
+    setQueue((prev) => [...prev, ...deleteOps]);
+    if (!offline) await drainQueue();
+  }, [drainQueue, offline, setQueue, setTodos]);
 
   const filteredTodos = useMemo(() => {
     switch (filter) {
       case 'active':
-        return todos.filter((t) => !t.completed);
+        return todosState.filter((t) => !t.completed);
       case 'completed':
-        return todos.filter((t) => t.completed);
+        return todosState.filter((t) => t.completed);
       default:
-        return todos;
+        return todosState;
     }
-  }, [todos, filter]);
+  }, [todosState, filter]);
 
-  const remaining = useMemo(() => todos.filter((t) => !t.completed).length, [todos]);
+  const remaining = useMemo(() => todosState.filter((t) => !t.completed).length, [todosState]);
 
   return {
-    todos,
+    todos: todosState,
     filteredTodos,
     filter,
     setFilter,

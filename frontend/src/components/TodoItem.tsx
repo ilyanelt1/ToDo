@@ -83,10 +83,18 @@ export function TodoItem({ todo, onToggle, onRemove, onRename }: TodoItemProps) 
           aria-label="Редактировать задачу"
           className="min-h-9 flex-1 rounded border border-indigo-300 px-2 py-1 text-base outline-none focus:ring-2 focus:ring-indigo-100"
         />
-      ) : (
+            ) : (
         <span
           onDoubleClick={startEditing}
-          className={`flex min-h-9 flex-1 cursor-text select-none items-center ${
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              startEditing();
+            }
+          }}
+          tabIndex={0}
+          role="button"
+          className={`flex min-h-9 flex-1 cursor-text select-none items-center rounded outline-none focus:ring-2 focus:ring-indigo-100 ${
             todo.completed ? 'text-gray-400 line-through' : 'text-gray-800'
           }`}
         >
