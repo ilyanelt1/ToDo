@@ -1,16 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import * as api from '../api/todos';
-import type { Filter, Todo } from '../types/todo';
+import * as api from "../api/todos";
+import type { Filter, Todo } from "../types/todo";
 
-const STORAGE_KEY = 'todos';
-const PENDING_KEY = 'todo_pending';
+const STORAGE_KEY = "todos";
+const PENDING_KEY = "todo_pending";
 const RETRY_INTERVAL_MS = 5000;
 
 type PendingOperation =
-  | { kind: 'create'; tempId: number; title: string }
-  | { kind: 'update'; id: number; changes: { title?: string; completed?: boolean } }
-  | { kind: 'delete'; id: number };
+  | { kind: "create"; tempId: number; title: string }
+  | {
+      kind: "update";
+      id: number;
+      changes: { title?: string; completed?: boolean };
+    }
+  | { kind: "delete"; id: number };
 
 interface UseTodosResult {
   todos: Todo[];
@@ -29,27 +33,31 @@ interface UseTodosResult {
 }
 
 function isTodo(value: unknown): value is Todo {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    typeof candidate.id === 'number' &&
-    typeof candidate.title === 'string' &&
-    typeof candidate.completed === 'boolean' &&
-    typeof candidate.created_at === 'string'
+    typeof candidate.id === "number" &&
+    typeof candidate.title === "string" &&
+    typeof candidate.completed === "boolean" &&
+    typeof candidate.created_at === "string"
   );
 }
 
 function isPendingOperation(value: unknown): value is PendingOperation {
-  if (typeof value !== 'object' || value === null) return false;
+  if (typeof value !== "object" || value === null) return false;
   const op = value as Record<string, unknown>;
-  if (op.kind === 'create') {
-    return typeof op.tempId === 'number' && typeof op.title === 'string';
+  if (op.kind === "create") {
+    return typeof op.tempId === "number" && typeof op.title === "string";
   }
-  if (op.kind === 'update') {
-    return typeof op.id === 'number' && typeof op.changes === 'object' && op.changes !== null;
+  if (op.kind === "update") {
+    return (
+      typeof op.id === "number" &&
+      typeof op.changes === "object" &&
+      op.changes !== null
+    );
   }
-  if (op.kind === 'delete') {
-    return typeof op.id === 'number';
+  if (op.kind === "delete") {
+    return typeof op.id === "number";
   }
   return false;
 }
@@ -85,13 +93,13 @@ function isNetworkError(err: unknown): boolean {
 }
 
 function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : 'Не удалось выполнить запрос';
+  return err instanceof Error ? err.message : "Не удалось выполнить запрос";
 }
 
 function remapId(from: number, to: number) {
   return (op: PendingOperation): PendingOperation => {
-    if (op.kind === 'update' && op.id === from) return { ...op, id: to };
-    if (op.kind === 'delete' && op.id === from) return { ...op, id: to };
+    if (op.kind === "update" && op.id === from) return { ...op, id: to };
+    if (op.kind === "delete" && op.id === from) return { ...op, id: to };
     return op;
   };
 }
@@ -103,7 +111,7 @@ function mergeRemoteWithLocal(
 ): Todo[] {
   const pendingDeletes = new Set<number>();
   for (const op of queue) {
-    if (op.kind === 'delete') pendingDeletes.add(op.id);
+    if (op.kind === "delete") pendingDeletes.add(op.id);
   }
   const map = new Map<number, Todo>();
   for (const t of remote) {
@@ -117,13 +125,15 @@ function mergeRemoteWithLocal(
 
 export function useTodos(): UseTodosResult {
   const [todosState, setTodosState] = useState<Todo[]>([]);
-  const [filter, setFilterState] = useState<Filter>('all');
+  const [filter, setFilterState] = useState<Filter>("all");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
 
   const todosRef = useRef(todosState);
-  const queueRef = useRef<PendingOperation[]>(readJsonArray(PENDING_KEY, isPendingOperation));
+  const queueRef = useRef<PendingOperation[]>(
+    readJsonArray(PENDING_KEY, isPendingOperation),
+  );
   const drainingRef = useRef(false);
   const offlineRef = useRef(offline);
   offlineRef.current = offline;
@@ -131,7 +141,7 @@ export function useTodos(): UseTodosResult {
   const setTodos = useCallback(
     (updater: Todo[] | ((prev: Todo[]) => Todo[])) => {
       const prev = todosRef.current;
-      const next = typeof updater === 'function' ? updater(prev) : updater;
+      const next = typeof updater === "function" ? updater(prev) : updater;
       todosRef.current = next;
       setTodosState(next);
       writeJson(STORAGE_KEY, next);
@@ -140,9 +150,12 @@ export function useTodos(): UseTodosResult {
   );
 
   const setQueue = useCallback(
-    (updater: PendingOperation[] | ((prev: PendingOperation[]) => PendingOperation[])) => {
+    (
+      updater:
+        PendingOperation[] | ((prev: PendingOperation[]) => PendingOperation[]),
+    ) => {
       const prev = queueRef.current;
-      const next = typeof updater === 'function' ? updater(prev) : updater;
+      const next = typeof updater === "function" ? updater(prev) : updater;
       queueRef.current = next;
       writeJson(PENDING_KEY, next);
     },
@@ -158,14 +171,18 @@ export function useTodos(): UseTodosResult {
         if (queue.length === 0) break;
         const op = queue[0];
         try {
-          if (op.kind === 'create') {
+          if (op.kind === "create") {
             const created = await api.createTodo({ title: op.title });
-            setTodos((current) => current.map((t) => (t.id === op.tempId ? created : t)));
-            setQueue((current) => current.slice(1).map(remapId(op.tempId, created.id)));
-          } else if (op.kind === 'update') {
+            setTodos((current) =>
+              current.map((t) => (t.id === op.tempId ? created : t)),
+            );
+            setQueue((current) =>
+              current.slice(1).map(remapId(op.tempId, created.id)),
+            );
+          } else if (op.kind === "update") {
             await api.updateTodo(op.id, op.changes);
             setQueue((current) => current.slice(1));
-          } else if (op.kind === 'delete') {
+          } else if (op.kind === "delete") {
             await api.deleteTodo(op.id);
             setQueue((current) => current.slice(1));
           }
@@ -175,7 +192,7 @@ export function useTodos(): UseTodosResult {
             break;
           }
           setError(errorMessage(err));
-          if (op.kind === 'create') {
+          if (op.kind === "create") {
             setTodos((current) => current.filter((t) => t.id !== op.tempId));
           }
           setQueue((current) => current.slice(1));
@@ -269,7 +286,7 @@ export function useTodos(): UseTodosResult {
         created_at: new Date().toISOString(),
       };
       setTodos((prev) => [...prev, optimistic]);
-      setQueue((prev) => [...prev, { kind: 'create', tempId, title: trimmed }]);
+      setQueue((prev) => [...prev, { kind: "create", tempId, title: trimmed }]);
       if (!offline) await drainQueue();
     },
     [drainQueue, offline, setQueue, setTodos],
@@ -280,10 +297,12 @@ export function useTodos(): UseTodosResult {
       const target = todosRef.current.find((t) => t.id === id);
       if (!target) return;
       setError(null);
-      setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)));
+      setTodos((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t)),
+      );
       setQueue((prev) => [
         ...prev,
-        { kind: 'update', id, changes: { completed: !target.completed } },
+        { kind: "update", id, changes: { completed: !target.completed } },
       ]);
       if (!offline) await drainQueue();
     },
@@ -294,7 +313,7 @@ export function useTodos(): UseTodosResult {
     async (id: number) => {
       setError(null);
       setTodos((prev) => prev.filter((t) => t.id !== id));
-      setQueue((prev) => [...prev, { kind: 'delete', id }]);
+      setQueue((prev) => [...prev, { kind: "delete", id }]);
       if (!offline) await drainQueue();
     },
     [drainQueue, offline, setQueue, setTodos],
@@ -307,8 +326,13 @@ export function useTodos(): UseTodosResult {
       const target = todosRef.current.find((t) => t.id === id);
       if (!target || target.title === trimmed) return;
       setError(null);
-      setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, title: trimmed } : t)));
-      setQueue((prev) => [...prev, { kind: 'update', id, changes: { title: trimmed } }]);
+      setTodos((prev) =>
+        prev.map((t) => (t.id === id ? { ...t, title: trimmed } : t)),
+      );
+      setQueue((prev) => [
+        ...prev,
+        { kind: "update", id, changes: { title: trimmed } },
+      ]);
       if (!offline) await drainQueue();
     },
     [drainQueue, offline, setQueue, setTodos],
@@ -336,23 +360,29 @@ export function useTodos(): UseTodosResult {
       }
     }
 
-    const deleteOps: PendingOperation[] = completed.map((t) => ({ kind: 'delete', id: t.id }));
+    const deleteOps: PendingOperation[] = completed.map((t) => ({
+      kind: "delete",
+      id: t.id,
+    }));
     setQueue((prev) => [...prev, ...deleteOps]);
     if (!offline) await drainQueue();
   }, [drainQueue, offline, setQueue, setTodos]);
 
   const filteredTodos = useMemo(() => {
     switch (filter) {
-      case 'active':
+      case "active":
         return todosState.filter((t) => !t.completed);
-      case 'completed':
+      case "completed":
         return todosState.filter((t) => t.completed);
       default:
         return todosState;
     }
   }, [todosState, filter]);
 
-  const remaining = useMemo(() => todosState.filter((t) => !t.completed).length, [todosState]);
+  const remaining = useMemo(
+    () => todosState.filter((t) => !t.completed).length,
+    [todosState],
+  );
 
   return {
     todos: todosState,

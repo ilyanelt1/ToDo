@@ -1,13 +1,13 @@
-import type { Filter } from '../types/todo';
+import type { Filter } from "../types/todo";
 
 interface EmptyStateProps {
   filter: Filter;
 }
 
 const MESSAGES: Record<Filter, string> = {
-  all: 'Пока нет задач. Добавьте первую!',
-  active: 'Активных задач нет. Всё сделано!',
-  completed: 'Выполненных задач нет.',
+  all: "Пока нет задач. Добавьте первую!",
+  active: "Активных задач нет. Всё сделано!",
+  completed: "Выполненных задач нет.",
 };
 
 export function EmptyState({ filter }: EmptyStateProps) {

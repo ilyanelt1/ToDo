@@ -1,12 +1,12 @@
-import { act, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import * as api from '../api/todos';
-import { useTodos } from './useTodos';
+import * as api from "../api/todos";
+import { useTodos } from "./useTodos";
 
-vi.mock('../api/todos');
+vi.mock("../api/todos");
 
-describe('useTodos offline mode (Kira bug #1)', () => {
+describe("useTodos offline mode (Kira bug #1)", () => {
   beforeEach(() => {
     localStorage.clear();
     vi.clearAllMocks();
@@ -17,9 +17,11 @@ describe('useTodos offline mode (Kira bug #1)', () => {
     vi.useRealTimers();
   });
 
-  it('keeps offline tasks in queue and syncs them on reconnect', async () => {
+  it("keeps offline tasks in queue and syncs them on reconnect", async () => {
     // 1. Бэкенд лежит при загрузке
-    vi.mocked(api.getTodos).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    vi.mocked(api.getTodos).mockRejectedValueOnce(
+      new TypeError("Failed to fetch"),
+    );
 
     const { result } = renderHook(() => useTodos());
 
@@ -33,19 +35,19 @@ describe('useTodos offline mode (Kira bug #1)', () => {
 
     // 2. Добавляем задачу в офлайне
     await act(async () => {
-      await result.current.add('Offline task');
+      await result.current.add("Offline task");
     });
 
     // Проверяем: задача в UI, id отрицательный (temp), очередь сохранена
     expect(result.current.todos).toHaveLength(1);
     expect(result.current.todos[0].id).toBeLessThan(0);
-    expect(localStorage.getItem('todo_pending')).toContain('Offline task');
+    expect(localStorage.getItem("todo_pending")).toContain("Offline task");
 
     // 3. Бэкенд поднялся
     vi.mocked(api.getTodos).mockResolvedValueOnce([]);
     vi.mocked(api.createTodo).mockResolvedValueOnce({
       id: 42,
-      title: 'Offline task',
+      title: "Offline task",
       completed: false,
       created_at: new Date().toISOString(),
     });
@@ -64,6 +66,6 @@ describe('useTodos offline mode (Kira bug #1)', () => {
     expect(result.current.offline).toBe(false);
     expect(result.current.todos).toHaveLength(1);
     expect(result.current.todos[0].id).toBe(42); // Серверный id заменил temp
-    expect(localStorage.getItem('todo_pending')).toBe('[]'); // Очередь очищена
+    expect(localStorage.getItem("todo_pending")).toBe("[]"); // Очередь очищена
   });
 });

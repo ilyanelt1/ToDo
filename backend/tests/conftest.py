@@ -15,7 +15,7 @@ from app.main import app
 
 
 @pytest.fixture
-async def engine() -> AsyncGenerator[AsyncEngine, None]:
+async def engine() -> AsyncGenerator[AsyncEngine]:
     test_engine = create_async_engine(
         "sqlite+aiosqlite:///:memory:",
         poolclass=StaticPool,
@@ -35,8 +35,8 @@ def session_factory(engine: AsyncEngine) -> async_sessionmaker[AsyncSession]:
 @pytest.fixture
 async def client(
     session_factory: async_sessionmaker[AsyncSession],
-) -> AsyncGenerator[AsyncClient, None]:
-    async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
+) -> AsyncGenerator[AsyncClient]:
+    async def override_get_db() -> AsyncGenerator[AsyncSession]:
         async with session_factory() as session:
             yield session
 

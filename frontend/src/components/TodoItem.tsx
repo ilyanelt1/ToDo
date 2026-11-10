@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-import type { Todo } from '../types/todo';
+import type { Todo } from "../types/todo";
 
 interface TodoItemProps {
   todo: Todo;
@@ -9,7 +9,12 @@ interface TodoItemProps {
   onRename: (id: number, title: string) => Promise<void>;
 }
 
-export function TodoItem({ todo, onToggle, onRemove, onRename }: TodoItemProps) {
+export function TodoItem({
+  todo,
+  onToggle,
+  onRemove,
+  onRename,
+}: TodoItemProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(todo.title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -49,10 +54,10 @@ export function TodoItem({ todo, onToggle, onRemove, onRename }: TodoItemProps) 
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Enter') {
+    if (event.key === "Enter") {
       event.preventDefault();
       void commit();
-    } else if (event.key === 'Escape') {
+    } else if (event.key === "Escape") {
       event.preventDefault();
       cancel();
     }
@@ -68,7 +73,11 @@ export function TodoItem({ todo, onToggle, onRemove, onRename }: TodoItemProps) 
         type="checkbox"
         checked={todo.completed}
         onChange={() => void onToggle(todo.id)}
-        aria-label={todo.completed ? 'Снять отметку о выполнении' : 'Отметить как выполненную'}
+        aria-label={
+          todo.completed
+            ? "Снять отметку о выполнении"
+            : "Отметить как выполненную"
+        }
         className="h-5 w-5 shrink-0 cursor-pointer rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
       />
       {editing ? (
@@ -83,11 +92,11 @@ export function TodoItem({ todo, onToggle, onRemove, onRename }: TodoItemProps) 
           aria-label="Редактировать задачу"
           className="min-h-9 flex-1 rounded border border-indigo-300 px-2 py-1 text-base outline-none focus:ring-2 focus:ring-indigo-100"
         />
-            ) : (
+      ) : (
         <span
           onDoubleClick={startEditing}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+            if (e.key === "Enter") {
               e.preventDefault();
               startEditing();
             }
@@ -95,7 +104,7 @@ export function TodoItem({ todo, onToggle, onRemove, onRename }: TodoItemProps) 
           tabIndex={0}
           role="button"
           className={`flex min-h-9 flex-1 cursor-text select-none items-center rounded outline-none focus:ring-2 focus:ring-indigo-100 ${
-            todo.completed ? 'text-gray-400 line-through' : 'text-gray-800'
+            todo.completed ? "text-gray-400 line-through" : "text-gray-800"
           }`}
         >
           {todo.title}

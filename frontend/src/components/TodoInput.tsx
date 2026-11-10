@@ -1,18 +1,18 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent } from "react";
 
 interface TodoInputProps {
   onAdd: (title: string) => Promise<void>;
 }
 
 export function TodoInput({ onAdd }: TodoInputProps) {
-  const [value, setValue] = useState('');
+  const [value, setValue] = useState("");
   const canSubmit = value.trim().length > 0;
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmed = value.trim();
     if (!trimmed) return;
-    setValue('');
+    setValue("");
     void onAdd(trimmed);
   };
 

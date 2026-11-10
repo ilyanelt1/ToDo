@@ -1,4 +1,4 @@
-import type { Filter } from '../types/todo';
+import type { Filter } from "../types/todo";
 
 interface FilterTabsProps {
   value: Filter;
@@ -6,9 +6,9 @@ interface FilterTabsProps {
 }
 
 const TABS: ReadonlyArray<{ value: Filter; label: string }> = [
-  { value: 'all', label: 'Все' },
-  { value: 'active', label: 'Активные' },
-  { value: 'completed', label: 'Выполненные' },
+  { value: "all", label: "Все" },
+  { value: "active", label: "Активные" },
+  { value: "completed", label: "Выполненные" },
 ];
 
 export function FilterTabs({ value, onChange }: FilterTabsProps) {
@@ -24,8 +24,8 @@ export function FilterTabs({ value, onChange }: FilterTabsProps) {
             onClick={() => onChange(tab.value)}
             className={`min-h-10 flex-1 rounded-md px-3 text-sm font-medium transition ${
               active
-                ? 'bg-white text-indigo-600 shadow-sm'
-                : 'text-gray-600 hover:text-gray-900'
+                ? "bg-white text-indigo-600 shadow-sm"
+                : "text-gray-600 hover:text-gray-900"
             }`}
           >
             {tab.label}

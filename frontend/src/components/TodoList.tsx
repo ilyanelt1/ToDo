@@ -1,6 +1,6 @@
-import type { Filter, Todo } from '../types/todo';
-import { EmptyState } from './EmptyState';
-import { TodoItem } from './TodoItem';
+import type { Filter, Todo } from "../types/todo";
+import { EmptyState } from "./EmptyState";
+import { TodoItem } from "./TodoItem";
 
 interface TodoListProps {
   todos: Todo[];
@@ -10,7 +10,13 @@ interface TodoListProps {
   onRename: (id: number, title: string) => Promise<void>;
 }
 
-export function TodoList({ todos, filter, onToggle, onRemove, onRename }: TodoListProps) {
+export function TodoList({
+  todos,
+  filter,
+  onToggle,
+  onRemove,
+  onRename,
+}: TodoListProps) {
   if (todos.length === 0) {
     return <EmptyState filter={filter} />;
   }

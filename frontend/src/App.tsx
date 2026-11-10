@@ -1,8 +1,8 @@
-import { FilterTabs } from './components/FilterTabs';
-import { Header } from './components/Header';
-import { TodoInput } from './components/TodoInput';
-import { TodoList } from './components/TodoList';
-import { useTodos } from './hooks/useTodos';
+import { FilterTabs } from "./components/FilterTabs";
+import { Header } from "./components/Header";
+import { TodoInput } from "./components/TodoInput";
+import { TodoList } from "./components/TodoList";
+import { useTodos } from "./hooks/useTodos";
 
 export default function App() {
   const {
