@@ -18,9 +18,7 @@ async def get_by_id(db: AsyncSession, todo_id: int) -> Todo | None:
 
 async def create(db: AsyncSession, payload: TodoCreate) -> Todo:
     if payload.client_id is not None:
-        existing = await db.scalar(
-            select(Todo).where(Todo.client_id == payload.client_id)
-        )
+        existing = await db.scalar(select(Todo).where(Todo.client_id == payload.client_id))
         if existing is not None:
             return existing
 
