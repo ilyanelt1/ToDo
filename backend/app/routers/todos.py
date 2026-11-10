@@ -31,7 +31,10 @@ async def list_todos(db: DbDep) -> list[TodoRead]:
 @router.post("", response_model=TodoRead, status_code=status.HTTP_201_CREATED)
 async def create_todo(payload: TodoCreate, db: DbDep) -> TodoRead:
     title = _normalize_title(payload.title)
-    todo = await crud.create(db, TodoCreate(title=title))
+    todo = await crud.create(
+        db,
+        TodoCreate(title=title, client_id=payload.client_id),
+    )
     return TodoRead.model_validate(todo)
 
 
@@ -49,9 +52,10 @@ async def update_todo(todo_id: int, payload: TodoUpdate, db: DbDep) -> TodoRead:
             detail="Todo not found",
         )
 
-    normalized_title = _normalize_title(payload.title) if payload.title is not None else None
+    normalized_title = (
+        _normalize_title(payload.title) if payload.title is not None else None
+    )
 
-    # Создаем новый объект вместо мутации входящего
     safe_payload = TodoUpdate(title=normalized_title, completed=payload.completed)
 
     updated = await crud.update(db, todo, safe_payload)
